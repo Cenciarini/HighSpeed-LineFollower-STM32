@@ -1,0 +1,443 @@
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
+#include <QtNetwork/QUdpSocket>
+#include <QElapsedTimer>
+#include <QPixmap>
+#include <qdebug.h>
+
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+{
+    ui->setupUi(this);
+
+    Qpista1 = new qpista(1348,561,ui->QPista);
+
+    mSocket_send = new QUdpSocket(this);
+    mSocket_recive = new QUdpSocket(this);
+
+    mSocket_recive->bind(QHostAddress("192.168.2.114"), 30001, QUdpSocket::ShareAddress);
+    connect(mSocket_recive, &QUdpSocket::readyRead, this, &MainWindow::readDatagrams);
+
+    /*connect(mSocket_recive, &QUdpSocket::readyRead, this, [&]() {
+        if(mSocket_recive->hasPendingDatagrams()){
+            datagramaRead.resize(mSocket_recive->pendingDatagramSize());
+            mSocket_recive->readDatagram(datagramaRead.data(),datagramaRead.size());
+            ui->label_5->setText("Recibido");
+        }
+    }); */
+
+    //Creación de label con imagenes para el menú inicial
+    /*QPixmap fondo("D:/Users/Gabriel Cenciarini/Pictures/fondo.jpg");
+    int w_fondo = ui->label_fondo->maximumWidth();
+    int h_fondo = ui->label_fondo->maximumHeight();
+    ui->label_fondo->setPixmap(fondo.scaled(w_fondo,h_fondo));
+    */
+}
+
+MainWindow::~MainWindow()
+{
+    delete Qpista1;
+    delete ui;
+}
+
+void MainWindow::resizeEvent(QResizeEvent */*event*/)
+{
+    //QMainWindow::resizeEvent(event);
+
+    Qpista1->resize(ui->QPista->size());
+    ui->label_5->setText(QString().number(ui->QPista->width()));
+    ui->label_6->setText(QString().number(ui->QPista->height()));
+}
+
+void MainWindow::paintEvent(QPaintEvent */*event*/)
+{
+    static bool first = false;
+
+    if(!first){
+        Qpista1->resize(ui->QPista->size());
+        first = true;
+    }
+}
+
+/*
+uint8_t MainWindow::sizeOf(QByteArray &array)
+{
+    uint8_t size = 0;
+
+    while(array[size] != '\0'){
+        size++;
+    }
+    //size--;
+    return size;
+}*/
+
+
+void MainWindow::on_pushButton_clicked()
+{
+    datagramaWrite.resize(seleccion.size());
+    datagramaWrite = seleccion;
+
+    mSocket_send->writeDatagram(datagramaWrite, QHostAddress("192.168.2.115"), 30010);  //Casa
+    //mSocket_send->writeDatagram(datagramaWrite, QHostAddress("192.168.2.108"), 30001); // LabPrototip
+}
+
+
+void MainWindow::on_comboBox_currentIndexChanged(int index)
+{
+
+    seleccion.resize(9);
+
+    switch (index) {
+    case 0:
+
+        break;
+    case 1:
+        //ALIVE = 55 4E 45 52 02 3A F0 C4
+        seleccion[0] = 'U';
+        seleccion[1] = 'N';
+        seleccion[2] = 'E';
+        seleccion[3] = 'R';
+        seleccion[4] = 0x02;
+        seleccion[5] = 0x3A;
+        seleccion[6] = 0xF0;
+        seleccion[7] = 0xC4;
+        seleccion[8] = '\0';
+        break;
+    case 2:
+        seleccion[0] = 'U';
+        seleccion[1] = 'N';
+        seleccion[2] = 'E';
+        seleccion[3] = 'R';
+        seleccion[4] = 0x02;
+        seleccion[5] = 0x3A;
+        seleccion[6] = 0xAC;
+        seleccion[7] = 0x98;
+        seleccion[8] = '\0';
+        break;
+    case 3:
+        seleccion[0] = 'U';
+        seleccion[1] = 'N';
+        seleccion[2] = 'E';
+        seleccion[3] = 'R';
+        seleccion[4] = 0x02;
+        seleccion[5] = 0x3A;
+        seleccion[6] = 0xAB;
+        seleccion[7] = 0x9F;
+        seleccion[8] = '\0';
+        break;
+    case 4:
+        seleccion[0] = 'U';
+        seleccion[1] = 'N';
+        seleccion[2] = 'E';
+        seleccion[3] = 'R';
+        seleccion[4] = 0x02;
+        seleccion[5] = 0x3A;
+        seleccion[6] = 0xA5;
+        seleccion[7] = 0x91;
+        seleccion[8] = '\0';
+        break;
+    default:
+        break;
+    }
+}
+
+void MainWindow::readDatagrams()
+{
+
+    if(mSocket_recive->hasPendingDatagrams()) {
+        datagramaRead.resize(int(mSocket_recive->pendingDatagramSize()));
+        mSocket_recive->readDatagram(datagramaRead.data(),datagramaRead.size());
+    }
+    //qDebug() << datagramaRead;
+    decodeDatagram();
+}
+
+void MainWindow::decodeDatagram()
+{
+    uint8_t index = 0, indexPayload = 0;
+
+    while (index != datagramaRead.size()) {
+        switch (stateDecode)
+        {
+            case 0:
+                if (datagramaRead[index++] == 'U') {
+                    stateDecode = 1;
+                    cksRx = 0;
+                }else{
+                    stateDecode = 0;
+                    command = ERROR;
+                    return;
+                }
+                break;
+            case 1:
+                if (datagramaRead[index++] == 'N') {
+                    stateDecode = 2;
+                }else{
+                    stateDecode = 0;
+                    command = ERROR;
+                    return;
+                }
+                break;
+            case 2:
+                if (datagramaRead[index++] == 'E'){
+                    stateDecode = 3;
+                }else{
+                    stateDecode = 0;
+                    command = ERROR;
+                    return;
+                }
+                break;
+            case 3:
+                if (datagramaRead[index++] == 'R'){
+                    stateDecode = 4;
+                }else{
+                    stateDecode = 0;
+                    command = ERROR;
+                    return;
+                }
+                break;
+            case 4:
+                nBytes = datagramaRead[index++];
+                stateDecode = 5;
+                break;
+            case 5:
+                if (datagramaRead[index++] == ':'){
+                    stateDecode = 6;
+                    cksRx = 'U' ^ 'N' ^ 'E' ^ 'R' ^ nBytes ^ ':';
+                    indexPayload = 0;
+                }else{
+                    stateDecode = 0;
+                    command = ERROR;
+                    return;
+                }
+                break;
+            case 6:
+                if(nBytes > 1){
+                    buff[indexPayload++] = datagramaRead[index];
+                    cksRx ^= datagramaRead[index++];
+                }
+                nBytes--;
+                if(nBytes == 0){
+                    stateDecode = 0;
+                    uint8_t cksRxAux = datagramaRead[index];
+                    if(cksRx == cksRxAux){
+                        analisisData();
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+void MainWindow::analisisData()
+{
+    switch (buff[0]) {
+        case 0xF0:
+                ui->label_7->setText("Estoy vivo");
+            break;
+        case 0xAC:  {
+            accelX = (buff[1] << 8) | buff[2];
+            accelY = (buff[3] << 8) | buff[4];
+
+            aX = ((float)accelX / 16384.0) * 981.0;
+            aY = ((float)accelY / 16384.0) * 981.0;
+
+            if(firstRead == 1){
+                timer.start();
+
+                aYOffset = aY + 11;
+                aXOffset = aX + 11;
+
+                firstRead = 0;
+            }else{
+                /*
+                vXi = vX;
+                vYi = vY;
+                */
+
+                aX -= aXOffset;
+                aY -= aYOffset;
+
+
+                QString qvalor;
+                ui->label_7->setText(qvalor.number(aX));
+
+                vX = aX * (timer.elapsed() / 1000.0);
+                vY = aY *  (timer.elapsed() / 1000.0);
+
+                /*
+                sX = (vX + vXi) / 2.0;
+                sX *= timer.elapsed() / 1000.0;
+                sY = (vY + vYi) / 2.0;
+                sY *= timer.elapsed() / 1000.0;
+                */
+
+                sX += vX * (timer.elapsed() / 1000.0);
+                sY += vY * (timer.elapsed() / 1000.0);
+
+                timer.restart();
+
+                if(circuitDraw == 1)
+                    updateCircuitDraw();
+
+                qDebug() << QString::number(vX);
+                qDebug() << QString::number(vY);
+
+            }
+            break;
+        }
+        case 0xAA:  {
+                char valor = buff[1];
+                int ivalor = (int)valor;
+                QString qvalor;
+                ui->label_7->setText(qvalor.number(ivalor));
+            break;
+        }
+        case 0xA7: {
+            adc_value = buff[1];
+            updateADCread();
+        }
+        default:
+            break;
+    }
+}
+
+void MainWindow::updateADCread()
+{
+    QPen pen;
+    QPainter paint(Qpista1->getCanvas());
+    QPoint point, point_adc;
+    QPoint puntoIzq, puntoDer;
+
+    puntoIzq.setX(404);
+    puntoIzq.setY(200);
+    puntoDer.setX(944);
+    puntoDer.setY(200);
+
+    Qpista1->getCanvas()->fill(Qt::white);
+    pen.setWidth(3);
+    pen.setColor(Qt::darkBlue);
+    paint.setPen(pen);
+    paint.drawLine(puntoIzq,puntoDer);
+
+    adc_value += 36;
+    adc_value = adc_value/4;
+
+    point.setX(944 - adc_value * 30);
+    point.setY(170);
+    point_adc.setX(944 - adc_value * 30);
+    point_adc.setY(230);
+
+    pen.setWidth(20);
+    pen.setColor(Qt::darkGray);
+    paint.setPen(pen);
+    paint.drawLine(point,point_adc);
+
+    Qpista1->update();
+}
+
+void MainWindow::updateCircuitDraw()
+{
+    QPen pen;
+    QPainter paint(Qpista1->getCanvas());
+    QPoint pointAnt, pointAct;
+
+    pointAnt.setX(pointAct.x());
+    pointAnt.setY(pointAct.y());
+
+    pointAct.setX(sX);
+    pointAct.setY(sY);
+    pen.setWidth(3);
+    pen.setColor(Qt::darkBlue);
+    paint.setPen(pen);
+    paint.drawLine(pointAnt,pointAct);
+    Qpista1->update();
+}
+
+
+void MainWindow::on_pushButton_2_clicked()
+{
+    PIDdatagram.resize(14);
+
+    PIDdatagram[0] = 'U';
+    PIDdatagram[1] = 'N';
+    PIDdatagram[2] = 'E';
+    PIDdatagram[3] = 'R';
+    PIDdatagram[4] = 0x07;
+    PIDdatagram[5] = 0x3A;
+    PIDdatagram[6] = 0xA6;
+    PIDdatagram[7] = (char)ui->KpIzq->value();
+    PIDdatagram[8] = (char)ui->KdIzq->value();
+    PIDdatagram[9] = (char)ui->KpDer->value();
+    PIDdatagram[10] = (char)ui->KdDer->value();
+    PIDdatagram[11] = (char)ui->VelPorc->value();
+    PIDdatagram[12] = 'U' ^ 'N' ^ 'E' ^ 'R' ^ 0x07 ^ ':' ^ 0xA6 ^ PIDdatagram[7] ^ PIDdatagram[8]  ^ PIDdatagram[9] ^ PIDdatagram[10] ^ PIDdatagram[11];
+    PIDdatagram[13] = '\0';
+
+    datagramaWrite.resize(PIDdatagram.size());
+    datagramaWrite = PIDdatagram;
+
+    //mSocket_send->writeDatagram(datagramaWrite, QHostAddress("192.168.2.108"), 30001); // LabPrototip
+    mSocket_send->writeDatagram(datagramaWrite, QHostAddress("192.168.2.115"), 30010);  //Casa
+}
+
+
+void MainWindow::on_checkBox_stateChanged(int arg1)
+{
+    QPen pen;
+    QPainter paint(Qpista1->getCanvas());
+    QPoint puntoIzq, puntoDer;
+
+    puntoIzq.setX(404);
+    puntoIzq.setY(200);
+    puntoDer.setX(944);
+    puntoDer.setY(200);
+
+    if(arg1){
+        Qpista1->getCanvas()->fill(Qt::white);
+        pen.setWidth(3);
+        pen.setColor(Qt::darkBlue);
+        paint.setPen(pen);
+        paint.drawLine(puntoIzq,puntoDer);
+    }else{
+        Qpista1->getCanvas()->fill(Qt::white);
+    }
+    Qpista1->update();
+
+    seleccion.resize(9);
+
+    seleccion[0] = 'U';
+    seleccion[1] = 'N';
+    seleccion[2] = 'E';
+    seleccion[3] = 'R';
+    seleccion[4] = 0x02;
+    seleccion[5] = 0x3A;
+    seleccion[6] = 0xA7;
+    seleccion[7] = 'U' ^ 'N' ^ 'E' ^ 'R' ^ 0x02 ^ ':' ^ 0xA7;
+    seleccion[8] = '\0';
+
+    datagramaWrite.resize(seleccion.size());
+    datagramaWrite = seleccion;
+
+    //mSocket_send->writeDatagram(datagramaWrite, QHostAddress("192.168.2.108"), 30001); // LabPrototip
+    mSocket_send->writeDatagram(datagramaWrite, QHostAddress("192.168.2.115"), 30010);  //Casa
+}
+
+
+void MainWindow::on_checkBox_2_stateChanged(int arg1)
+{
+    if(arg1){
+        if(firstRead == 0){
+            Qpista1->getCanvas()->fill(Qt::white);
+            circuitDraw = 1;
+        }
+    }else{
+        Qpista1->getCanvas()->fill(Qt::white);
+        circuitDraw = 0;
+    }
+    Qpista1->update();
+}
+

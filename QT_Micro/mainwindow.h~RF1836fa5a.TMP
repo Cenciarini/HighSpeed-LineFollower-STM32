@@ -1,0 +1,86 @@
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
+
+#include <QMainWindow>
+#include <QElapsedTimer>
+#include "qpista.h"
+
+QT_BEGIN_NAMESPACE
+namespace Ui { class MainWindow; }
+QT_END_NAMESPACE
+
+class QUdpSocket;
+
+class MainWindow : public QMainWindow
+{
+    Q_OBJECT
+
+public:
+    MainWindow(QWidget *parent = nullptr);
+    ~MainWindow();
+
+private slots:
+    void on_pushButton_clicked();
+    void resizeEvent(QResizeEvent *event);
+    void paintEvent(QPaintEvent *event);
+    void on_comboBox_currentIndexChanged(int index);
+    void readDatagrams();
+    void decodeDatagram();
+    void analisisData();
+    void updateADCread();
+    void updateCircuitDraw();
+
+    //uint8_t sizeOf(QByteArray &array);
+
+    void on_pushButton_2_clicked();
+
+    void on_checkBox_stateChanged(int arg1);
+
+    void on_checkBox_2_stateChanged(int arg1);
+
+private:
+    Ui::MainWindow *ui;
+
+    qpista *Qpista1;
+
+    QElapsedTimer timer;
+
+    QUdpSocket *mSocket_send;
+    QUdpSocket *mSocket_recive;
+
+    QByteArray seleccion;
+    QByteArray PIDdatagram;
+    QByteArray datagramaWrite;
+    QByteArray datagramaRead;
+
+    uint8_t stateDecode = 0;
+    uint8_t nBytes = 0;
+    uint8_t cksRx;
+    uint8_t cksRx_;
+    uint8_t command = 0;
+    uint8_t buff[256];
+    int8_t adc_value;
+    float accelX = 0.0;
+    float aX = 0.0;
+    float aXOffset = 0.0;
+    float vX = 0.0;
+    float vXi = 0.0;
+    float sX = 0.0;
+    float accelY = 0.0;
+    float aY = 0.0;
+    float aYOffset = 0.0;
+    float vY = 0.0;
+    float vYi = 0.0;
+    float sY = 0.0;
+    uint8_t firstRead = 1;
+    uint8_t circuitDraw = 0;
+
+    typedef enum{
+        NADA,
+        ERROR,
+        ALIVE,
+        PISTA
+    }_command;
+
+};
+#endif // MAINWINDOW_H
